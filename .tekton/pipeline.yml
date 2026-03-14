@@ -49,6 +49,7 @@ spec:
             workingDir: $(workspaces.output.path)
             script: |
               #!/bin/sh
+              git config --global --add safe.directory /workspace/output
               git clone $(params.repo-url) .
               git checkout $(params.branch)
       params:
@@ -96,7 +97,7 @@ spec:
               #!/bin/bash
               pip install nose pytest
               if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-              pytest
+              pytest tests/test_sample.py
       workspaces:
         - name: source
           workspace: shared-workspace
