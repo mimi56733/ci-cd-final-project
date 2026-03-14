@@ -1,0 +1,145 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: oc-pipelines
+spec:
+  workspaces:
+    - name: shared-workspace
+  params:
+    - name: repo-url
+      type: string
+      default: https://github.com/mimi56733/ci-cd-final-project.git
+    - name: branch
+      type: string
+      default: main
+    - name: image-name
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/sn-labs-melaribiti/ci-cd-final-project:latest
+
+  tasks:
+    - name: cleanup
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: cleanup
+            image: alpine:3.18
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/sh
+              rm -rf ./* ./.??* || true
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: git-clone
+      runAfter:
+        - cleanup
+      taskSpec:
+        params:
+          - name: repo-url
+            type: string
+          - name: branch
+            type: string
+        workspaces:
+          - name: output
+        steps:
+          - name: clone
+            image: alpine/git
+            workingDir: $(workspaces.output.path)
+            script: |
+              #!/bin/sh
+              git clone $(params.repo-url) .
+              git checkout $(params.branch)
+      params:
+        - name: repo-url
+          value: $(params.repo-url)
+        - name: branch
+          value: $(params.branch)
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+
+    - name: flake8
+      runAfter:
+        - git-clone
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: flake8
+            image: python:3.9-slim
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/bash
+              pip install flake8
+              if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+              flake8 . --max-line-length=120
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: nose
+      runAfter:
+        - flake8
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: nose
+            image: python:3.9-slim
+            workingDir: $(workspaces.source.path)
+            env:
+              - name: PYTHONPATH
+                value: $(workspaces.source.path)
+            script: |
+              #!/bin/bash
+              pip install nose pytest
+              if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+              pytest
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: buildah
+      runAfter:
+        - nose
+      taskSpec:
+        params:
+          - name: IMAGE
+            type: string
+        workspaces:
+          - name: source
+        steps:
+          - name: build
+            image: quay.io/buildah/stable:v1.17.0
+            workingDir: $(workspaces.source.path)
+            securityContext:
+              privileged: true
+            script: |
+              #!/bin/bash
+              buildah bud -t $(params.IMAGE) .
+              buildah push $(params.IMAGE)
+      params:
+        - name: IMAGE
+          value: $(params.image-name)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: deploy
+      runAfter:
+        - buildah
+      taskSpec:
+        params:
+          - name: IMAGE
+            type: string
+        steps:
+          - name: openshift-client
+            image: quay.io/openshift/origin-cli:latest
+            script: |
+              #!/bin/bash
+              echo "Deploy step completed for $(params.IMAGE)"
+      params:
+        - name: IMAGE
+          value: $(params.image-name)
