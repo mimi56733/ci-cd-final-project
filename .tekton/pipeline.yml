@@ -115,8 +115,11 @@ spec:
           - name: build
             image: quay.io/buildah/stable:v1.17.0
             workingDir: $(workspaces.source.path)
-            securityContext:
-              privileged: true
+            env:
+              - name: STORAGE_DRIVER
+                value: vfs
+              - name: BUILDAH_FORMAT
+                value: docker
             script: |
               #!/bin/bash
               buildah bud -t $(params.IMAGE) .
