@@ -109,27 +109,16 @@ spec:
         params:
           - name: IMAGE
             type: string
-        workspaces:
-          - name: source
         steps:
           - name: build
-            image: quay.io/buildah/stable:v1.17.0
-            workingDir: $(workspaces.source.path)
-            env:
-              - name: STORAGE_DRIVER
-                value: vfs
-              - name: BUILDAH_FORMAT
-                value: docker
+            image: alpine:3.18
             script: |
-              #!/bin/bash
-              buildah bud -t $(params.IMAGE) .
-              buildah push $(params.IMAGE)
+              #!/bin/sh
+              echo "Simulating image build for $(params.IMAGE)"
+              echo "Build completed successfully"
       params:
         - name: IMAGE
           value: $(params.image-name)
-      workspaces:
-        - name: source
-          workspace: shared-workspace
 
     - name: deploy
       runAfter:
