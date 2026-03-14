@@ -30,8 +30,11 @@ spec:
           value: $(workspaces.source.path)
       script: |
         #!/bin/bash
+        set -e
         pip install pytest
-        pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        ls -R
+        pytest tests/test_sample.py
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Task
